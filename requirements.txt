@@ -5,7 +5,8 @@ langchain
 wikipedia
 langchain-community
 langchain-openai
+langchain-core
 langchain-anthropic
 python-dotenv
 pydantic
-gpt4all
+starlette
