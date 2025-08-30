@@ -95,12 +95,12 @@
   </div>
 
   <script>
-    let conversationId = null;
+    let sessionId = null;
 
     async function startConversation() {
       const res = await fetch('/chat/start');
       const data = await res.json();
-      conversationId = data.conversation_id;
+      sessionId = data.session_id;
     }
 
     async function sendMessage() {
@@ -115,7 +115,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            conversation_id: conversationId,
+            session_id: sessionId,
             message: message
           })
       });

@@ -2,9 +2,13 @@ import logging as log
 import os
 import uuid
 
+from langchain_core.output_parsers import StrOutputParser
+
 from pojo.chat_pojo import *
 from fastapi import APIRouter, Request
-from langchain.chains.conversation.base import ConversationChain
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_community.chat_message_histories import ChatMessageHistory
 from starlette.responses import FileResponse
 
 # Steps to load the UI. These details are initialized once on startup when importing the file in main.py
@@ -26,17 +30,40 @@ async def star_chat():
     return FileResponse(os.path.join(templates_path, "chat_ui.html"))
 
 # Temporary in-memory store
-conversation_store = {}
+chat_runner_store = {}
+session_store = {}
+
+def get_history(session_id: str) -> ChatMessageHistory:
+    if session_id not in session_store:
+        session_store[session_id] = ChatMessageHistory()
+    return session_store[session_id]
 @chat_router.get("/start", response_model=ConversationResponse)
 async def star_chat(request: Request):
     """
             Starts a chat. It initializes a conversationChain with the OpenAI LLM and creates a conversationId for tracking purposes
     """
     llm = request.app.state.llm
-    conversation_id = str(uuid.uuid4())
-    conversation_store[conversation_id] = ConversationChain(llm=llm, verbose=True)
-    log.info(f"Starting chat with conversation id: {conversation_id}")
-    return ConversationResponse(conversation_id=conversation_id)
+    session_id = str(uuid.uuid4())
+    # Build a prompt that knows about `history` and `input`
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a helpful chat agent. You need to respond to the message like a human would during a conversation. Answers need to be short and crisp yet informative."),
+        MessagesPlaceholder(variable_name="history"),  # must match history_messages_key below
+        ("human", "{input}"),  # must match input_messages_key below
+    ])
+
+    chain = prompt | llm | StrOutputParser()
+
+    # Create the runner on-demand (lightweight, stateless)
+    chat_runner = RunnableWithMessageHistory(
+        chain,
+        get_history,
+        input_messages_key="input",
+        history_messages_key="history",
+        output_messages_key="output"
+    )
+    chat_runner_store[session_id] = chat_runner
+    log.info(f"Starting chat with session id: {session_id}")
+    return ConversationResponse(session_id=session_id)
 
 @chat_router.post("/send", response_model=MessageResponse)
 async def send_chat_message(message_request: MessageRequest):
@@ -44,8 +71,13 @@ async def send_chat_message(message_request: MessageRequest):
         Send a chat message to LLM. The API responds with a response from the LLM model
     """
 
-    log.info(f"Request from user: {message_request.message} for conversation: {message_request.conversation_id}")
-    conversation = conversation_store[message_request.conversation_id]
-    response = conversation.run(message_request.message)
-    log.info(f"Response from AI: {response}")
-    return MessageResponse(reply=response)
+    log.info(f"Request from user: {message_request.message} for session: {message_request.session_id}")
+    chat_runner = chat_runner_store[message_request.session_id]
+    session_id = message_request.session_id
+    user_message = message_request.message
+    config = {"configurable": {"session_id": session_id}}
+
+    result = await chat_runner.ainvoke({"input": user_message}, config=config)
+    log.info(f"Response from AI: {result}")
+
+    return {"reply": result}

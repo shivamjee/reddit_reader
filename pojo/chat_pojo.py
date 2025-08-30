@@ -5,7 +5,7 @@ class MessageRequest(BaseModel):
     """
         Message Request Model for Chat System
     """
-    conversation_id: str
+    session_id: str
     message: str
 
 class MessageResponse(BaseModel):
@@ -18,4 +18,4 @@ class ConversationResponse(BaseModel):
     """
         Response Model with conversation details when the chat starts
     """
-    conversation_id: str
+    session_id: str
