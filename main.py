@@ -3,6 +3,7 @@ import os
 import uvicorn
 from fastapi import FastAPI
 from langchain_openai import ChatOpenAI
+from langchain_community.cache import InMemoryCache
 
 from router.chat_router import chat_router
 from router.health_router import health_router
@@ -20,7 +21,13 @@ load_dotenv()
 log.info(f"Env variables loaded")
 
 # Initialize OpenAI model (you can use gpt-4o-mini for cheap or gpt-4o for advanced)
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, api_key=os.getenv("OPENAI_API_KEY"))
+cache = InMemoryCache()
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    temperature=0.7,
+    api_key=os.getenv("OPENAI_API_KEY"),
+    cache=cache
+)
 log.info(f"LLM connection Loaded")
 
 #Initialize FastAPI Router
