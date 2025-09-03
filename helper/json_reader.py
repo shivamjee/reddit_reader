@@ -1,35 +1,62 @@
-#This function only fetches top level questions and answers, and does not account for replies to particular answers.
+#Pythom file which takes a reddit json and formats it in a prompt readable json for processing
 
-def extract_bodies(json_data):
+def extract_comment(item):
     """
-    Recursively traverse the Reddit-like JSON structure
-    and extract all "body" values.
+    Extract a single comment's body, author, and its nested replies (if any).
+    Returns a dict: { "body": str, "author": str, "replies": [...] } or {"question": question, "author": author} (if it is a question)
     """
-    answers = []
-    questions = []
+
+    # Each item is expected to have 'data'
+    if not isinstance(item, dict) or 'data' not in item:
+        return None
+
+    data = item['data']
+
+    # Extract the body
+    body = data.get("body")
+    author = data.get("author")
+    question = data.get("selftext")
+    if question:
+        return {"question": question, "author": author}
+    if not body:  # Skip items without a body
+        return None
+
+    # Check for replies (may be empty string or actual JSON)
+    replies = data.get('replies')
+    replies_list = []
+
+    if replies and isinstance(replies, dict):
+        # Recursively process replies: replies['data']['children']
+        children = replies.get('data', {}).get('children', [])
+        for child in children:
+            nested = extract_comment(child)
+            if nested:
+                replies_list.append(nested)
+
+    return {"body": body, "author": author, "replies": replies_list}
+
+
+def pre_process_reddit_json(json_data):
+    """
+    Traverses the top-level list and extracts all comments
+    with their nested replies.
+    """
+    comments = []
 
     def traverse(item):
-        # Check if item has 'data'
+        # Ensure it's a valid dict with 'data' and maybe 'children'
         if not isinstance(item, dict) or 'data' not in item:
             return
 
         data = item['data']
-
-        # If 'body' exists in this data, add it
-        if 'body' in data:
-            answers.append(data['body'])
-        if 'selftext' in data:
-            questions.append(data['selftext'])
-
-
-        # If 'children' exist, recurse into each child
         if 'children' in data and isinstance(data['children'], list):
             for child in data['children']:
-                traverse(child)
+                comment = extract_comment(child)
+                if comment:
+                    comments.append(comment)
 
-    # The top-level JSON is a list of items
     if isinstance(json_data, list):
         for item in json_data:
             traverse(item)
 
-    return questions, answers
+    return comments
