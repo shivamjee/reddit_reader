@@ -2,6 +2,7 @@ import logging as log
 import os
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from langchain_openai import ChatOpenAI
 from langchain_community.cache import InMemoryCache
 
@@ -34,6 +35,14 @@ log.info(f"LLM connection Loaded")
 app = FastAPI()
 
 app.state.llm = llm
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or restrict to Chrome extension ID
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(health_router)
 app.include_router(reddit_reader_router, prefix="/reddit")
 app.include_router(chat_router, prefix="/chat")

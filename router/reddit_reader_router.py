@@ -59,6 +59,7 @@ async def get_reddit_details(url: str = Query(..., description="URL to fetch Red
 
         #URL validations
         if not validate_reddit_url(url):
+            log.info(f"Invalid URL")
             return {"supported": False}
 
         #Add .json to url
